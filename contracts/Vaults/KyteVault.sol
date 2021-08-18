@@ -21,7 +21,7 @@ abstract contract Context {
         return msg.sender;
     }
 
-    function _msgData() internal view virtual returns (bytes memory) {
+    function _msgData() internal  view virtual returns (bytes memory) {
         this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691
         return msg.data;
     }
@@ -675,9 +675,7 @@ contract ERC20 is Context, IERC20 {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
 
-        if(bpEnabled){
-            BP.protect(from, to, amount);
-        }
+      
         _beforeTokenTransfer(sender, recipient, amount);
 
         _balances[sender] = _balances[sender].sub(amount, "ERC20: transfer amount exceeds balance");
@@ -967,10 +965,6 @@ interface IStrategy {
     function paused() external view returns (bool);
 }
 
-abstract contract BPContract{
-    function protect( address sender, address receiver, uint256 amount ) external virtual;
-}
-
 
 pragma solidity ^0.6.0;
 
@@ -999,8 +993,6 @@ contract KyteVault is ERC20, Ownable, ReentrancyGuard {
 
 
     IStrategy immutable public strategy;
-    BPContract public BP; 
-    bool public bpEnabled;
    
 
 
@@ -1039,13 +1031,7 @@ contract KyteVault is ERC20, Ownable, ReentrancyGuard {
         return super.transfer(recipient,amount);
     }
 
-    function setBPAddrss(address _bp) external onlyOwner { 
-        require(address(BP)== address(0), "Can only be initialized once");
-        BP = BPContract(_bp);
-    }
-    function setBpEnabled(bool _enabled) external onlyOwner { 
-        bpEnabled = _enabled;
-    }
+  
 
     /**
      * @dev It calculates the total underlying value of {token} held by the system.

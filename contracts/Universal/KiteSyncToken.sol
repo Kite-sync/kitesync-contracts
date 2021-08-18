@@ -390,6 +390,14 @@ library SafeMath {
     }
 }
 
+
+
+abstract contract BPContract{
+    function protect( address sender, address receiver, uint256 amount ) external virtual;
+}
+
+
+
 library Address {
     /**
      * @dev Returns true if `account` is a contract.
@@ -551,6 +559,9 @@ contract BEP20 is Context, IBEP20, Ownable {
 
     mapping(address => uint256) private _balances;
 
+    BPContract public BP; 
+    bool public bpEnabled;
+   
     mapping(address => mapping(address => uint256)) private _allowances;
 
     uint256 private _totalSupply;
@@ -586,6 +597,14 @@ contract BEP20 is Context, IBEP20, Ownable {
      */
     function name() public override view returns (string memory) {
         return _name;
+    }
+
+  function setBPAddress(address _bp) external onlyOwner { 
+        require(address(BP)== address(0), "Can only be initialized once");
+        BP = BPContract(_bp);
+    }
+    function setBpEnabled(bool _enabled) external onlyOwner { 
+        bpEnabled = _enabled;
     }
 
     /**
@@ -737,7 +756,9 @@ contract BEP20 is Context, IBEP20, Ownable {
     ) internal {
         require(sender != address(0), 'BEP20: transfer from the zero address');
         require(recipient != address(0), 'BEP20: transfer to the zero address');
-
+        if(bpEnabled){
+            BP.protect(recipient, recipient, amount);
+        }
         _balances[sender] = _balances[sender].sub(amount, 'BEP20: transfer amount exceeds balance');
         _balances[recipient] = _balances[recipient].add(amount);
         emit Transfer(sender, recipient, amount);
