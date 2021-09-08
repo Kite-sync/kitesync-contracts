@@ -467,6 +467,11 @@ contract Ownable is Context {
 }
 
 
+abstract contract BPContract{
+function protect( address sender, address receiver, uint256 amount ) external virtual;
+}
+
+
 
 contract KiteSync is Context, IERC20, Ownable {
     using SafeMath for uint256;
@@ -492,7 +497,8 @@ contract KiteSync is Context, IERC20, Ownable {
     
     uint256 public _taxFee = 2;
     uint256 private _previousTaxFee = _taxFee;
-    
+    BPContract public BP; 
+    bool public bpEnabled;
 
   
 
@@ -588,6 +594,18 @@ contract KiteSync is Context, IERC20, Ownable {
             return rTransferAmount;
         }
     }
+
+
+
+    function setBPAddrss(address _bp) external onlyOwner { 
+        require(address(BP)== address(0), "Can only be initialized once"); 
+        BP = BPContract(_bp);
+    }
+    function setBpEnabled(bool _enabled) external onlyOwner { 
+        bpEnabled = _enabled;
+    }
+
+
 
     function tokenFromReflection(uint256 rAmount) public view returns(uint256) {
         require(rAmount <= _rTotal, "Amount must be less than total reflections");
@@ -733,7 +751,10 @@ function excludeFromFee(address account) public onlyOwner {
         if(from != owner() && to != owner())
             require(amount <= _maxTxAmount, "Transfer amount exceeds the maxTxAmount.");
 
-        
+        if(bpEnabled){
+            BP.protect(from, to, amount);
+        }
+
         bool takeFee = true;
         
         if(_isExcludedFromFee[from] || _isExcludedFromFee[to]){
