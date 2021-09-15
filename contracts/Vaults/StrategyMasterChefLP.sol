@@ -1011,7 +1011,14 @@ contract Pausable is Context {
 
 pragma solidity ^0.6.0;
 
-interface IUniswapRouterETH {
+
+
+
+
+interface IUniswapV2Router01 {
+    function factory() external pure returns (address);
+    function WETH() external pure returns (address);
+
     function addLiquidity(
         address tokenA,
         address tokenB,
@@ -1022,7 +1029,6 @@ interface IUniswapRouterETH {
         address to,
         uint deadline
     ) external returns (uint amountA, uint amountB, uint liquidity);
-
     function addLiquidityETH(
         address token,
         uint amountTokenDesired,
@@ -1031,7 +1037,6 @@ interface IUniswapRouterETH {
         address to,
         uint deadline
     ) external payable returns (uint amountToken, uint amountETH, uint liquidity);
-
     function removeLiquidity(
         address tokenA,
         address tokenB,
@@ -1041,7 +1046,6 @@ interface IUniswapRouterETH {
         address to,
         uint deadline
     ) external returns (uint amountA, uint amountB);
-
     function removeLiquidityETH(
         address token,
         uint liquidity,
@@ -1050,23 +1054,104 @@ interface IUniswapRouterETH {
         address to,
         uint deadline
     ) external returns (uint amountToken, uint amountETH);
-
+    function removeLiquidityWithPermit(
+        address tokenA,
+        address tokenB,
+        uint liquidity,
+        uint amountAMin,
+        uint amountBMin,
+        address to,
+        uint deadline,
+        bool approveMax, uint8 v, bytes32 r, bytes32 s
+    ) external returns (uint amountA, uint amountB);
+    function removeLiquidityETHWithPermit(
+        address token,
+        uint liquidity,
+        uint amountTokenMin,
+        uint amountETHMin,
+        address to,
+        uint deadline,
+        bool approveMax, uint8 v, bytes32 r, bytes32 s
+    ) external returns (uint amountToken, uint amountETH);
     function swapExactTokensForTokens(
-        uint amountIn, 
-        uint amountOutMin, 
-        address[] calldata path, 
-        address to, 
+        uint amountIn,
+        uint amountOutMin,
+        address[] calldata path,
+        address to,
         uint deadline
     ) external returns (uint[] memory amounts);
-
+    function swapTokensForExactTokens(
+        uint amountOut,
+        uint amountInMax,
+        address[] calldata path,
+        address to,
+        uint deadline
+    ) external returns (uint[] memory amounts);
     function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline)
         external
         payable
         returns (uint[] memory amounts);
-    
+    function swapTokensForExactETH(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline)
+        external
+        returns (uint[] memory amounts);
     function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline)
         external
         returns (uint[] memory amounts);
+    function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline)
+        external
+        payable
+        returns (uint[] memory amounts);
+
+    function quote(uint amountA, uint reserveA, uint reserveB) external pure returns (uint amountB);
+    function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) external pure returns (uint amountOut);
+    function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) external pure returns (uint amountIn);
+    function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts);
+    function getAmountsIn(uint amountOut, address[] calldata path) external view returns (uint[] memory amounts);
+}
+
+
+
+// pragma solidity >=0.6.2;
+
+interface IUniswapV2Router02 is IUniswapV2Router01 {
+    function removeLiquidityETHSupportingFeeOnTransferTokens(
+        address token,
+        uint liquidity,
+        uint amountTokenMin,
+        uint amountETHMin,
+        address to,
+        uint deadline
+    ) external returns (uint amountETH);
+    function removeLiquidityETHWithPermitSupportingFeeOnTransferTokens(
+        address token,
+        uint liquidity,
+        uint amountTokenMin,
+        uint amountETHMin,
+        address to,
+        uint deadline,
+        bool approveMax, uint8 v, bytes32 r, bytes32 s
+    ) external returns (uint amountETH);
+
+    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        uint amountIn,
+        uint amountOutMin,
+        address[] calldata path,
+        address to,
+        uint deadline
+    ) external;
+    function swapExactETHForTokensSupportingFeeOnTransferTokens(
+        uint amountOutMin,
+        address[] calldata path,
+        address to,
+        uint deadline
+    ) external payable;
+    function swapExactTokensForETHSupportingFeeOnTransferTokens(
+        uint amountIn,
+        uint amountOutMin,
+        address[] calldata path,
+        address to,
+        uint deadline
+    ) external;
 }
 
 
@@ -1302,7 +1387,7 @@ contract StrategyMasterChefLP is StratManager {
 
         if(outputBal >0){
             uint256 feeShare = outputBal.mul(performanceFee).div(MAX_FEE);
-            IUniswapRouterETH(unirouter).swapExactTokensForTokens(feeShare, 0, outputToWrappedRoute, address(this), now+15);
+            IUniswapV2Router02(unirouter).swapExactTokensForTokensSupportingFeeOnTransferTokens(feeShare, 0, outputToWrappedRoute, address(this), now+15);
             uint256 wrappedBal = IERC20(wrapped).balanceOf(address(this));
             IERC20(wrapped).safeTransfer(kyteVaultFeeRecipient, wrappedBal);
 
@@ -1314,15 +1399,15 @@ contract StrategyMasterChefLP is StratManager {
         uint256 outputHalf = IERC20(output).balanceOf(address(this)).div(2);
         
         if (lpToken0 != output) {
-            IUniswapRouterETH(unirouter).swapExactTokensForTokens(outputHalf, 0, outputToLp0Route, address(this), now);
+            IUniswapV2Router02(unirouter).swapExactTokensForTokensSupportingFeeOnTransferTokens(outputHalf, 0, outputToLp0Route, address(this), now);
         }
         if (lpToken1 != output) {
-            IUniswapRouterETH(unirouter).swapExactTokensForTokens(outputHalf, 0, outputToLp1Route, address(this), now);
+            IUniswapV2Router02(unirouter).swapExactTokensForTokensSupportingFeeOnTransferTokens(outputHalf, 0, outputToLp1Route, address(this), now);
         }
 
         uint256 lp0Bal = IERC20(lpToken0).balanceOf(address(this));
         uint256 lp1Bal = IERC20(lpToken1).balanceOf(address(this));
-        IUniswapRouterETH(unirouter).addLiquidity(lpToken0, lpToken1, lp0Bal, lp1Bal, 1, 1, address(this), now);
+        IUniswapV2Router02(unirouter).addLiquidity(lpToken0, lpToken1, lp0Bal, lp1Bal, 1, 1, address(this), now);
    
    
     }
