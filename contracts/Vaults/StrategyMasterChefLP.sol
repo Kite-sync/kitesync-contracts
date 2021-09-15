@@ -1274,7 +1274,7 @@ contract StrategyMasterChefLP is StratManager {
     }
 
     // compounds earnings and charges performance fee
-    function harvest() external whenNotPaused  {
+    function harvest() public whenNotPaused  {
 
 
 
@@ -1291,7 +1291,7 @@ contract StrategyMasterChefLP is StratManager {
 
 
     function beforeDeposit() external virtual {
-        // harvest();
+        harvest();
     }
 
     // performance fees
