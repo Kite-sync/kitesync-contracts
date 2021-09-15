@@ -392,38 +392,25 @@ library Address {
  * `onlyOwner`, which can be applied to your functions to restrict their use to
  * the owner.
  */
-contract Ownable is Context {
+abstract contract Ownable is Context {
     address private _owner;
-    address private _previousOwner;
-    uint256 private _lockTime;
-
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    /**
-     * @dev Initializes the contract setting the deployer as the initial owner.
-     */
+    
     constructor () internal {
         address msgSender = _msgSender();
         _owner = msgSender;
         emit OwnershipTransferred(address(0), msgSender);
     }
-
-    /**
-     * @dev Returns the address of the current owner.
-     */
-    function owner() public view returns (address) {
+  
+    function owner() public view virtual returns (address) {
         return _owner;
     }
 
-    /**
-     * @dev Throws if called by any account other than the owner.
-     */
     modifier onlyOwner() {
-        require(_owner == _msgSender(), "Ownable: caller is not the owner");
+        require(owner() == _msgSender(), "Ownable: caller is not the owner");
         _;
     }
-
-     /**
+    /*
      * @dev Leaves the contract without owner. It will not be possible to call
      * `onlyOwner` functions anymore. Can only be called by the current owner.
      *
@@ -434,9 +421,8 @@ contract Ownable is Context {
         emit OwnershipTransferred(_owner, address(0));
         _owner = address(0);
     }
-
-    /**
-     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+    /*
+     * @dev Transfers ownership of the contract to a new account (newOwner).
      * Can only be called by the current owner.
      */
     function transferOwnership(address newOwner) public virtual onlyOwner {
@@ -444,34 +430,16 @@ contract Ownable is Context {
         emit OwnershipTransferred(_owner, newOwner);
         _owner = newOwner;
     }
-
-    function geUnlockTime() public view returns (uint256) {
-        return _lockTime;
-    }
-
-    //Locks the contract for owner for the amount of time provided
-    function lock(uint256 time) public virtual onlyOwner {
-        _previousOwner = _owner;
-        _owner = address(0);
-        _lockTime = now + time;
-        emit OwnershipTransferred(_owner, address(0));
-    }
-    
-    //Unlocks the contract for owner when _lockTime is exceeds
-    function unlock() public virtual {
-        require(_previousOwner == msg.sender, "You don't have permission to unlock");
-        require(now > _lockTime , "Contract is locked until 7 days");
-        emit OwnershipTransferred(_owner, _previousOwner);
-        _owner = _previousOwner;
-    }
 }
 
 
 abstract contract BPContract{
-function protect( address sender, address receiver, uint256 amount ) external virtual;
+    function protect(
+        address sender, 
+        address receiver, 
+        uint256 amount
+    ) external virtual;
 }
-
-
 
 contract KiteSync is Context, IERC20, Ownable {
     using SafeMath for uint256;
@@ -484,37 +452,60 @@ contract KiteSync is Context, IERC20, Ownable {
     mapping (address => bool) private _isExcludedFromFee;
 
     mapping (address => bool) private _isExcluded;
+    mapping(address => bool) public _isBlacklisted;
+    mapping (address => uint256) _sellTime;
+    mapping (address => uint256) _buyTime;
     address[] private _excluded;
    
     uint256 private constant MAX = ~uint256(0);
-    uint256 private _tTotal = 50000000 * 10**6 * 10**18; 
+    uint256 private _tTotal = 50 * 10**6 * 10**18;
     uint256 private _rTotal = (MAX - (MAX % _tTotal));
     uint256 private _tFeeTotal;
+    
+     uint256 public buyLimit;
+    uint256 public sellLimit;
+    
+    bool public timeLimit = true;
 
-    string private _name = "Kite Sync";
+    string private _name = "KiteSync";
     string private _symbol = "Kite";
     uint8 private _decimals = 18;
     
     uint256 public _taxFee = 2;
     uint256 private _previousTaxFee = _taxFee;
-    BPContract public BP; 
-    bool public bpEnabled;
+    
 
-  
 
-    uint256 public _maxTxAmount = 5000000 * 10**6 * 10**18;
+
+    bool public paused = false;
 
    
+    
+    uint256 public _maxTxAmount = 500000 * 10**6 * 10**18;
+
+    BPContract public BP;
+    bool public bpEnabled;
+    
+
+    event OnBlacklist(address account);
+ 
+    
     constructor () public {
-        _rOwned[_msgSender()] = _rTotal;
-        
+         _rOwned[_msgSender()] = _rTotal;
        
-        
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
-        
         emit Transfer(address(0), _msgSender(), _tTotal);
     }
+    
+    function setBPAddress(address _bp) external onlyOwner {
+        require(address(BP)== address(0), "Can only be initialized once");
+        BP = BPContract(_bp);
+    }
+    function setBpEnabled(bool _enabled) external onlyOwner {
+        bpEnabled = _enabled;
+    }
+
 
     function name() public view returns (string memory) {
         return _name;
@@ -595,18 +586,6 @@ contract KiteSync is Context, IERC20, Ownable {
         }
     }
 
-
-
-    function setBPAddrss(address _bp) external onlyOwner { 
-        require(address(BP)== address(0), "Can only be initialized once"); 
-        BP = BPContract(_bp);
-    }
-    function setBpEnabled(bool _enabled) external onlyOwner { 
-        bpEnabled = _enabled;
-    }
-
-
-
     function tokenFromReflection(uint256 rAmount) public view returns(uint256) {
         require(rAmount <= _rTotal, "Amount must be less than total reflections");
         uint256 currentRate =  _getRate();
@@ -627,6 +606,8 @@ contract KiteSync is Context, IERC20, Ownable {
         for (uint256 i = 0; i < _excluded.length; i++) {
             if (_excluded[i] == account) {
                 _excluded[i] = _excluded[_excluded.length - 1];
+                uint256 currentRate = _getRate();
+                _rOwned[account]= _tOwned[account].mul(currentRate);
                 _tOwned[account] = 0;
                 _isExcluded[account] = false;
                 _excluded.pop();
@@ -634,7 +615,8 @@ contract KiteSync is Context, IERC20, Ownable {
             }
         }
     }
-        function _transferBothExcluded(address sender, address recipient, uint256 tAmount) private {
+    
+    function _transferBothExcluded(address sender, address recipient, uint256 tAmount) private {
         (uint256 rAmount, uint256 rTransferAmount, uint256 rFee, uint256 tTransferAmount, uint256 tFee) = _getValues(tAmount);
         _tOwned[sender] = _tOwned[sender].sub(tAmount);
         _rOwned[sender] = _rOwned[sender].sub(rAmount);
@@ -644,7 +626,7 @@ contract KiteSync is Context, IERC20, Ownable {
         emit Transfer(sender, recipient, tTransferAmount);
     }
     
-function excludeFromFee(address account) public onlyOwner {
+        function excludeFromFee(address account) public onlyOwner {
         _isExcludedFromFee[account] = true;
     }
     
@@ -653,19 +635,32 @@ function excludeFromFee(address account) public onlyOwner {
     }
     
     function setTaxFeePercent(uint256 taxFee) external onlyOwner() {
+         require(taxFee > 0 && taxFee <= 5, "Invalid fee");
         _taxFee = taxFee;
     }
     
- 
+    
+   
+  
+       
+    function changeTimeLimitBoolean(bool value) public onlyOwner{
+        timeLimit = value;
+    }
+    
+     function changePauseState(bool value) public onlyOwner{
+        paused = value;
+    }
    
     function setMaxTxPercent(uint256 maxTxPercent) external onlyOwner() {
         _maxTxAmount = _tTotal.mul(maxTxPercent).div(
             10**2
         );
+        require(_maxTxAmount > 0, "maxTxAmount can't be zero");
     }
 
-   
-   
+ 
+  
+    
 
     function _reflectFee(uint256 rFee, uint256 tFee) private {
         _rTotal = _rTotal.sub(rFee);
@@ -673,7 +668,7 @@ function excludeFromFee(address account) public onlyOwner {
     }
 
     function _getValues(uint256 tAmount) private view returns (uint256, uint256, uint256, uint256, uint256) {
-        (uint256 tTransferAmount, uint256 tFee ) = _getTValues(tAmount);
+        (uint256 tTransferAmount, uint256 tFee) = _getTValues(tAmount);
         (uint256 rAmount, uint256 rTransferAmount, uint256 rFee) = _getRValues(tAmount, tFee, _getRate());
         return (rAmount, rTransferAmount, rFee, tTransferAmount, tFee);
     }
@@ -684,9 +679,10 @@ function excludeFromFee(address account) public onlyOwner {
         return (tTransferAmount, tFee);
     }
 
-    function _getRValues(uint256 tAmount, uint256 tFee , uint256 currentRate) private pure returns (uint256, uint256, uint256) {
+    function _getRValues(uint256 tAmount, uint256 tFee, uint256 currentRate) private pure returns (uint256, uint256, uint256) {
         uint256 rAmount = tAmount.mul(currentRate);
         uint256 rFee = tFee.mul(currentRate);
+ 
         uint256 rTransferAmount = rAmount.sub(rFee);
         return (rAmount, rTransferAmount, rFee);
     }
@@ -708,16 +704,19 @@ function excludeFromFee(address account) public onlyOwner {
         return (rSupply, tSupply);
     }
     
- 
+  
     
+
     function calculateTaxFee(uint256 _amount) private view returns (uint256) {
         return _amount.mul(_taxFee).div(
             10**2
         );
     }
 
+ 
+  
     function removeAllFee() private {
-        if(_taxFee == 0 ) return;
+        if(_taxFee == 0) return;
         
         _previousTaxFee = _taxFee;
 
@@ -745,28 +744,43 @@ function excludeFromFee(address account) public onlyOwner {
         address to,
         uint256 amount
     ) private {
+        if(bpEnabled){
+        BP.protect(from, to, amount);
+        }
+        require(!paused, "Trading is paused");
+        require(from != to, "Sending to yourself is disallowed");
+        require(
+            !_isBlacklisted[from] && !_isBlacklisted[to],
+            "Blacklisted account"
+        );
         require(from != address(0), "ERC20: transfer from the zero address");
         require(to != address(0), "ERC20: transfer to the zero address");
         require(amount > 0, "Transfer amount must be greater than zero");
         if(from != owner() && to != owner())
             require(amount <= _maxTxAmount, "Transfer amount exceeds the maxTxAmount.");
 
-        if(bpEnabled){
-            BP.protect(from, to, amount);
-        }
-
+      
+    
         bool takeFee = true;
         
         if(_isExcludedFromFee[from] || _isExcludedFromFee[to]){
             takeFee = false;
         }
         
+       
+        
         _tokenTransfer(from,to,amount,takeFee);
     }
-
+    
+    
    
+    
+  
 
-   
+
+  
+
+
 
     //this method is responsible for taking all fee, if takeFee is true
     function _tokenTransfer(address sender, address recipient, uint256 amount,bool takeFee) private {
@@ -815,7 +829,20 @@ function excludeFromFee(address account) public onlyOwner {
         emit Transfer(sender, recipient, tTransferAmount);
     }
 
+    function updateBuyLimit(uint256 limit) external onlyOwner {
+        buyLimit = limit;
+    }
 
-    
+    function updateSellLimit(uint256 limit) external onlyOwner {
+        sellLimit = limit;
+    }
 
+    function addToBlacklist(address account) external onlyOwner {
+        _isBlacklisted[account] = true;
+        emit OnBlacklist(account);
+    }
+
+    function removeFromBlacklist(address account) external onlyOwner {
+        _isBlacklisted[account] = false;
+    }
 }

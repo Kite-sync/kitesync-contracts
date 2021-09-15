@@ -1198,7 +1198,6 @@ contract StrategyMasterChefLP is StratManager {
     constructor(
         address _want,
         uint256 _poolId,
-        address _vault,
         address _unirouter,
         address _keeper,
         address _kyteVaultFeeRecipient,
@@ -1206,7 +1205,7 @@ contract StrategyMasterChefLP is StratManager {
         address _wrapped,
         address _output,
         uint256 _performanceFee
-    ) StratManager(_keeper, _unirouter, _vault, _kyteVaultFeeRecipient) public {
+    ) StratManager(_keeper, _unirouter, address(0), _kyteVaultFeeRecipient) public {
 
         require(performanceFee <= 3000, "exceeds max performance fee threshold");
 
@@ -1241,7 +1240,7 @@ contract StrategyMasterChefLP is StratManager {
 
     // puts the funds to work
     function deposit() public whenNotPaused {
-        require(msg.sender == vault, "!vault");
+        // require(msg.sender == vault, "!vault");
         uint256 wantBal = IERC20(want).balanceOf(address(this));
 
         if (wantBal > 0) {
@@ -1297,12 +1296,13 @@ contract StrategyMasterChefLP is StratManager {
 
     // performance fees
     function chargeFees() internal {
-        uint256 toWrapped = IERC20(output).balanceOf(address(this)).mul(performanceFee).div(MAX_FEE);
+        uint256 outputBal = IERC20(output).balanceOf(address(this));
 
     
 
-        if(toWrapped >0){
-            IUniswapRouterETH(unirouter).swapExactTokensForTokens(toWrapped, 0, outputToWrappedRoute, address(this), now);
+        if(outputBal >0){
+            uint256 feeShare = outputBal.mul(performanceFee).div(MAX_FEE);
+            IUniswapRouterETH(unirouter).swapExactTokensForTokens(feeShare, 0, outputToWrappedRoute, address(this), now+15);
             uint256 wrappedBal = IERC20(wrapped).balanceOf(address(this));
             IERC20(wrapped).safeTransfer(kyteVaultFeeRecipient, wrappedBal);
 
@@ -1314,8 +1314,8 @@ contract StrategyMasterChefLP is StratManager {
         uint256 outputHalf = IERC20(output).balanceOf(address(this)).div(2);
         
         if (lpToken0 != output) {
-                IUniswapRouterETH(unirouter).swapExactTokensForTokens(outputHalf, 0, outputToLp0Route, address(this), now);
-            }
+            IUniswapRouterETH(unirouter).swapExactTokensForTokens(outputHalf, 0, outputToLp0Route, address(this), now);
+        }
         if (lpToken1 != output) {
             IUniswapRouterETH(unirouter).swapExactTokensForTokens(outputHalf, 0, outputToLp1Route, address(this), now);
         }
