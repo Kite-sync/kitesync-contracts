@@ -876,13 +876,34 @@ contract KiteSync is Context, IERC20, Ownable {
 
 
 
-    function addToBlacklist(address account) external onlyOwner {
+  
+   
+
+
+    function multiBlacklist(address[] memory addresses) external onlyOwner {
+
+
+        for (uint256 i = 0; i < addresses.length; i++) {
+           addToBlacklist(addresses[i]);
+        }
+
+    }
+
+    function addToBlacklist(address account) public onlyOwner {
         require(account != busdPair && account != bnbPair,"can't blacklist lp");
         blacklisted[account] = block.timestamp;
         emit OnBlacklist(account);
     }
 
-    function removeFromBlacklist(address account) external onlyOwner {
+
+    function multiRemoveFromBlacklist(address[] memory addresses) external onlyOwner {
+        for (uint256 i = 0; i < addresses.length; i++) {
+            removeFromBlacklist(addresses[i]);
+
+        }
+    }
+     function removeFromBlacklist(address account) public onlyOwner {
         blacklisted[account] = 0;
     }
+
 }
