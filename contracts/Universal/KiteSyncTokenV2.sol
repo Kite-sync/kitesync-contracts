@@ -433,6 +433,23 @@ abstract contract Ownable is Context {
 }
 
 
+interface IUniswapV2Factory {
+    event PairCreated(address indexed token0, address indexed token1, address pair, uint);
+
+    function feeTo() external view returns (address);
+    function feeToSetter() external view returns (address);
+
+    function getPair(address tokenA, address tokenB) external view returns (address pair);
+    function allPairs(uint) external view returns (address pair);
+    function allPairsLength() external view returns (uint);
+
+    function createPair(address tokenA, address tokenB) external returns (address pair);
+
+    function setFeeTo(address) external;
+    function setFeeToSetter(address) external;
+}
+
+
 abstract contract BPContract{
     function protect(
         address sender, 
@@ -451,8 +468,9 @@ contract KiteSync is Context, IERC20, Ownable {
 
     mapping (address => bool) private _isExcludedFromFee;
 
+
     mapping (address => bool) private _isExcluded;
-    mapping(address => bool) public _isBlacklisted;
+    mapping(address => uint256) public blacklisted;
     mapping (address => uint256) _sellTime;
     mapping (address => uint256) _buyTime;
     address[] private _excluded;
@@ -475,11 +493,16 @@ contract KiteSync is Context, IERC20, Ownable {
     uint256 private _previousTaxFee = _taxFee;
     
 
+    uint256 public constant MAX_BLACKLIST_TIME = 2 days;
+
+    address public immutable busdPair;
+    address public immutable bnbPair;
 
 
     bool public paused = false;
 
-   
+
+    
     
     uint256 public _maxTxAmount = 500000 * 10**6 * 10**18;
 
@@ -495,6 +518,11 @@ contract KiteSync is Context, IERC20, Ownable {
        
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
+
+        IUniswapV2Factory _iUniswapV2Factory = IUniswapV2Factory(0x10ED43C718714eb63d5aA57B78B54704E256024E); //router
+        bnbPair = _iUniswapV2Factory.createPair(address(this),0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c); //WBNB
+        busdPair = _iUniswapV2Factory.createPair(address(this),0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56); // BUSD
+
         emit Transfer(address(0), _msgSender(), _tTotal);
     }
     
@@ -626,7 +654,7 @@ contract KiteSync is Context, IERC20, Ownable {
         emit Transfer(sender, recipient, tTransferAmount);
     }
     
-        function excludeFromFee(address account) public onlyOwner {
+    function excludeFromFee(address account) public onlyOwner {
         _isExcludedFromFee[account] = true;
     }
     
@@ -749,8 +777,11 @@ contract KiteSync is Context, IERC20, Ownable {
         }
         require(!paused, "Trading is paused");
         require(from != to, "Sending to yourself is disallowed");
+        processBlackList(from);
+        processBlackList(to);
+
         require(
-            !_isBlacklisted[from] && !_isBlacklisted[to],
+            blacklisted[from] == 0  && blacklisted[to]==0,
             "Blacklisted account"
         );
         require(from != address(0), "ERC20: transfer from the zero address");
@@ -777,6 +808,12 @@ contract KiteSync is Context, IERC20, Ownable {
     
   
 
+
+    function processBlackList(address addr) internal {
+        if(blacklisted[addr].add(MAX_BLACKLIST_TIME)< block.timestamp){
+            blacklisted[addr] = 0;
+        }
+    }
 
   
 
@@ -837,12 +874,15 @@ contract KiteSync is Context, IERC20, Ownable {
         sellLimit = limit;
     }
 
+
+
     function addToBlacklist(address account) external onlyOwner {
-        _isBlacklisted[account] = true;
+        require(account != busdPair && account != bnbPair,"can't blacklist lp");
+        blacklisted[account] = block.timestamp;
         emit OnBlacklist(account);
     }
 
     function removeFromBlacklist(address account) external onlyOwner {
-        _isBlacklisted[account] = false;
+        blacklisted[account] = 0;
     }
 }
