@@ -470,7 +470,7 @@ contract KiteSync is Context, IERC20, Ownable {
 
 
     mapping (address => bool) private _isExcluded;
-    mapping(address => uint256) public blacklisted;
+    mapping(address => bool) public blacklisted;
     mapping (address => uint256) _sellTime;
     mapping (address => uint256) _buyTime;
     address[] private _excluded;
@@ -493,7 +493,6 @@ contract KiteSync is Context, IERC20, Ownable {
     uint256 private _previousTaxFee = _taxFee;
     
 
-    uint256 public constant MAX_BLACKLIST_TIME = 2 days;
 
     address public immutable busdPair;
     address public immutable bnbPair;
@@ -777,11 +776,11 @@ contract KiteSync is Context, IERC20, Ownable {
         }
         require(!paused, "Trading is paused");
         require(from != to, "Sending to yourself is disallowed");
-        processBlackList(from);
-        processBlackList(to);
+    
+
 
         require(
-            blacklisted[from] == 0  && blacklisted[to]==0,
+            !blacklisted[from]   && !blacklisted[to],
             "Blacklisted account"
         );
         require(from != address(0), "ERC20: transfer from the zero address");
@@ -804,18 +803,6 @@ contract KiteSync is Context, IERC20, Ownable {
     }
     
     
-   
-    
-  
-
-
-    function processBlackList(address addr) internal {
-        if(blacklisted[addr].add(MAX_BLACKLIST_TIME)< block.timestamp){
-            blacklisted[addr] = 0;
-        }
-    }
-
-  
 
 
 
@@ -891,7 +878,7 @@ contract KiteSync is Context, IERC20, Ownable {
 
     function addToBlacklist(address account) public onlyOwner {
         require(account != busdPair && account != bnbPair,"can't blacklist lp");
-        blacklisted[account] = block.timestamp;
+        blacklisted[account] = true;
         emit OnBlacklist(account);
     }
 
@@ -903,7 +890,7 @@ contract KiteSync is Context, IERC20, Ownable {
         }
     }
      function removeFromBlacklist(address account) public onlyOwner {
-        blacklisted[account] = 0;
+        blacklisted[account] = false;
     }
 
 }
