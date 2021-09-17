@@ -1387,27 +1387,34 @@ contract StrategyMasterChefLP is StratManager {
 
         if(outputBal >0){
             uint256 feeShare = outputBal.mul(performanceFee).div(MAX_FEE);
-            IUniswapV2Router02(unirouter).swapExactTokensForTokensSupportingFeeOnTransferTokens(feeShare, 0, outputToWrappedRoute, address(this), now+15);
-            uint256 wrappedBal = IERC20(wrapped).balanceOf(address(this));
-            IERC20(wrapped).safeTransfer(kyteVaultFeeRecipient, wrappedBal);
+            if(feeShare > 0){
+                IUniswapV2Router02(unirouter).swapExactTokensForTokensSupportingFeeOnTransferTokens(feeShare, 0, outputToWrappedRoute, address(this), now+15);
+                uint256 wrappedBal = IERC20(wrapped).balanceOf(address(this));
+                IERC20(wrapped).safeTransfer(kyteVaultFeeRecipient, wrappedBal);
 
+            }
+         
         }
     }
 
     // Adds liquidity to AMM and gets more LP tokens.
     function addLiquidity() internal {
         uint256 outputHalf = IERC20(output).balanceOf(address(this)).div(2);
-        
-        if (lpToken0 != output) {
-            IUniswapV2Router02(unirouter).swapExactTokensForTokensSupportingFeeOnTransferTokens(outputHalf, 0, outputToLp0Route, address(this), now);
-        }
-        if (lpToken1 != output) {
-            IUniswapV2Router02(unirouter).swapExactTokensForTokensSupportingFeeOnTransferTokens(outputHalf, 0, outputToLp1Route, address(this), now);
-        }
+        if(outputHalf >0){
+            if (lpToken0 != output) {
+                IUniswapV2Router02(unirouter).swapExactTokensForTokensSupportingFeeOnTransferTokens(outputHalf, 0, outputToLp0Route, address(this), now);
+            }
+            if (lpToken1 != output) {
+                IUniswapV2Router02(unirouter).swapExactTokensForTokensSupportingFeeOnTransferTokens(outputHalf, 0, outputToLp1Route, address(this), now);
+            }
 
-        uint256 lp0Bal = IERC20(lpToken0).balanceOf(address(this));
-        uint256 lp1Bal = IERC20(lpToken1).balanceOf(address(this));
-        IUniswapV2Router02(unirouter).addLiquidity(lpToken0, lpToken1, lp0Bal, lp1Bal, 1, 1, address(this), now);
+            uint256 lp0Bal = IERC20(lpToken0).balanceOf(address(this));
+            uint256 lp1Bal = IERC20(lpToken1).balanceOf(address(this));
+            if(lp0Bal >0 && lp1Bal > 0){
+                IUniswapV2Router02(unirouter).addLiquidity(lpToken0, lpToken1, lp0Bal, lp1Bal, 1, 1, address(this), now);
+            }   
+        }
+       
    
    
     }
