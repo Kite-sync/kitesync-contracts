@@ -741,10 +741,14 @@ contract KITEETHMasterChef is Ownable {
 
     KITEStakingReserve public kiteStakingReserve;
 
+
+
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
-
+    event FeeAddressChanged(address previousAddress,address newAddress);
+    event DevAddressChanged(address previousAddress,address newAddress);
+    event EmissionUpdated(uint256 previousRate,uint256 newRate);
     constructor(
         IERC20 _kite,
         address _devaddr,
@@ -773,6 +777,22 @@ contract KITEETHMasterChef is Ownable {
         bool _withUpdate
     ) public onlyOwner {
         require(_depositFeeBP <= MAX_FEE, 'invalid fee');
+
+
+
+        //checking for duplicate lps
+
+        bool isDuplicate = false;
+
+        for(uint256 i=0; i<poolInfo.length; i++){
+            if(poolInfo[i].lpToken == _lpToken){
+                isDuplicate = true;
+                break;
+            }
+        }
+
+
+        require(!isDuplicate , "adding duplicate lp");
         if (_withUpdate) {
             massUpdatePools();
         }
@@ -871,14 +891,14 @@ contract KITEETHMasterChef is Ownable {
         }
         if (_amount > 0) {
             uint256 preBal = pool.lpToken.balanceOf(address(this)); // safe deflationary tokens
-            pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
+            pool.lpToken.safeTransferFrom(msg.sender, address(this), _amount);
             uint256 afterBal  = pool.lpToken.balanceOf(address(this)); // safe deflationary tokens
             _amount = afterBal.sub(preBal);
             
             if (pool.depositFeeBP > 0) {
                 uint256 depositFee = _amount.mul(pool.depositFeeBP).div(10000);
-                pool.lpToken.safeTransfer(feeAddress, depositFee);
                 user.amount = user.amount.add(_amount).sub(depositFee);
+                pool.lpToken.safeTransfer(feeAddress, depositFee);
             } else {
                 user.amount = user.amount.add(_amount);
             }
@@ -888,13 +908,17 @@ contract KITEETHMasterChef is Ownable {
     }
 
     // Withdraw LP tokens from MasterChef.
-    function withdraw(uint256 _pid, uint256 _amount) public {
+    function withdraw(uint256 _pid, uint256 _amount, bool allowMinRewards) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, 'withdraw: not good');
         updatePool(_pid);
         uint256 pending = user.amount.mul(pool.accKITEPerShare).div(1e12).sub(user.rewardDebt);
         if (pending > 0) {
+            if(!allowMinRewards){
+                uint256 kiteBal = kite.balanceOf(address(this));
+                require(pending < kiteBal," not enough rewards to pay");
+            }
             safeKITETransfer(msg.sender, pending);
         }
         if (_amount > 0) {
@@ -904,6 +928,9 @@ contract KITEETHMasterChef is Ownable {
         user.rewardDebt = user.amount.mul(pool.accKITEPerShare).div(1e12);
         emit Withdraw(msg.sender, _pid, _amount);
     }
+
+
+    
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
     
@@ -939,19 +966,27 @@ contract KITEETHMasterChef is Ownable {
 
     // Update dev address by the previous dev.
 
-    function dev(address _devaddr) public {
+    function changeDev(address _devaddr) public {
         require(msg.sender == devaddr, 'dev: wut?');
+        address prvDev = devaddr;
         devaddr = _devaddr;
+        emit DevAddressChanged(prvDev,devaddr);
+
     }
 
     function setFeeAddress(address _feeAddress) public {
         require(msg.sender == feeAddress, 'setFeeAddress: FORBIDDEN');
+        address prvFeeAddress = feeAddress;
         feeAddress = _feeAddress;
+        emit FeeAddressChanged(prvFeeAddress,_feeAddress);
+
     }
 
     //Pancake has to add hidden dummy pools inorder to alter the emission, here we make it simple and transparent to all.
     function updateEmissionRate(uint256 _kitePerBlock) public onlyOwner {
         massUpdatePools();
+        uint256 prvEmission = _kitePerBlock;
         kitePerBlock = _kitePerBlock;
+        emit EmissionUpdated(prvEmission,_kitePerBlock);
     }
 }
