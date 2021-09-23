@@ -699,6 +699,7 @@ contract KITEETHMasterChef is Ownable {
     using SafeERC20 for IERC20;
 
     uint256 public totalRewardPaid;
+    mapping (address => bool) public pools;
 
 
     // Info of each user.
@@ -777,19 +778,7 @@ contract KITEETHMasterChef is Ownable {
         bool _withUpdate
     ) public onlyOwner {
         require(_depositFeeBP <= MAX_FEE, 'invalid fee');
-
-
-
-        //checking for duplicate lps
-
-        bool isDuplicate = false;
-
-        for(uint256 i=0; i<poolInfo.length; i++){
-            if(poolInfo[i].lpToken == _lpToken){
-                isDuplicate = true;
-                break;
-            }
-        }
+        require(!pools[_lpToken],"Pool already added");
 
 
         require(!isDuplicate , "adding duplicate lp");
@@ -807,6 +796,8 @@ contract KITEETHMasterChef is Ownable {
                 depositFeeBP: _depositFeeBP
             })
         );
+
+        pools[_lpToken]= true;
     }
 
     // Update the given pool's KITE allocation point and deposit fee. Can only be called by the owner.
@@ -908,17 +899,14 @@ contract KITEETHMasterChef is Ownable {
     }
 
     // Withdraw LP tokens from MasterChef.
-    function withdraw(uint256 _pid, uint256 _amount, bool allowMinRewards) public {
+    function withdraw(uint256 _pid, uint256 _amount) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, 'withdraw: not good');
         updatePool(_pid);
         uint256 pending = user.amount.mul(pool.accKITEPerShare).div(1e12).sub(user.rewardDebt);
         if (pending > 0) {
-            if(!allowMinRewards){
-                uint256 kiteBal = kite.balanceOf(address(this));
-                require(pending < kiteBal," not enough rewards to pay");
-            }
+          
             safeKITETransfer(msg.sender, pending);
         }
         if (_amount > 0) {
