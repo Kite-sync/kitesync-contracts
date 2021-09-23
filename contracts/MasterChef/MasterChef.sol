@@ -781,7 +781,6 @@ contract KITEETHMasterChef is Ownable {
         require(!pools[_lpToken],"Pool already added");
 
 
-        require(!isDuplicate , "adding duplicate lp");
         if (_withUpdate) {
             massUpdatePools();
         }
