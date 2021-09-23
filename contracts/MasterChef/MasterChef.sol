@@ -898,7 +898,7 @@ contract KITEETHMasterChef is Ownable {
     }
 
     // Withdraw LP tokens from MasterChef.
-    function withdraw(uint256 _pid, uint256 _amount) public {
+    function withdraw(uint256 _pid, uint256 _amount, bool allowMinWithdraw) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, 'withdraw: not good');
@@ -906,6 +906,10 @@ contract KITEETHMasterChef is Ownable {
         uint256 pending = user.amount.mul(pool.accKITEPerShare).div(1e12).sub(user.rewardDebt);
         if (pending > 0) {
           
+            if(allowMinWithdraw){
+                uint256 bal = kite.balanceOf(address(this));
+                require(bal > pending,"not enough reward to pay");
+            }
             safeKITETransfer(msg.sender, pending);
         }
         if (_amount > 0) {
