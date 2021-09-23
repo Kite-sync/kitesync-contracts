@@ -778,7 +778,7 @@ contract KITEETHMasterChef is Ownable {
         bool _withUpdate
     ) public onlyOwner {
         require(_depositFeeBP <= MAX_FEE, 'invalid fee');
-        require(!pools[_lpToken],"Pool already added");
+        require(!pools[address(_lpToken)],"Pool already added");
 
 
         if (_withUpdate) {
@@ -796,7 +796,7 @@ contract KITEETHMasterChef is Ownable {
             })
         );
 
-        pools[_lpToken]= true;
+        pools[address(_lpToken)]= true;
     }
 
     // Update the given pool's KITE allocation point and deposit fee. Can only be called by the owner.
